@@ -17,16 +17,21 @@
  * 	* can use an external memory or self-allocated buffer
  */
 
-#ifndef LEDMATRIXDRIVER_H
-#define LEDMATRIXDRIVER_H
+#ifndef LED_MATRIX_DRIVER_H
+#define LED_MATRIX_DRIVER_H
 
 #include <stdint.h>
 #include <stddef.h>
 #include <functional>
+#include <string.h>
 
 
-// typedef callback_t std::function<int(uint8_t *buf, size_t len)>;
+#define MAX_LED_MATRIX_MODULES	4
 
+/**
+ * @brief This interface function must be implemented by the user.
+ */
+typedef std::function<void(uint16_t *data, size_t len)> spi_transfer_t;
 
 /**
  * @brief LED Matrix Driver module
@@ -55,7 +60,11 @@ public:
 	 * @param flags Configuration flags to determine orientation of modules
 	 * @param frameBuffer Pointer to pre-allocated frame buffer (optional)
 	 */
-	LEDMatrixDriver(uint8_t N, uint8_t flags=0, uint8_t* frameBuffer=nullptr);
+	LEDMatrixDriver(uint8_t N,
+					spi_transfer_t spi_transfer,
+					uint8_t flags=0,
+					uint8_t* frameBuffer=nullptr
+					);
 	~LEDMatrixDriver();
 
 	/* We don't want to copy the object */
@@ -139,6 +148,9 @@ private:
 	uint8_t flags;
 	uint8_t* frameBuffer;
 	bool selfAllocated;
+	spi_transfer_t spi_transfer;
+
+	uint16_t cmd_buffer[MAX_LED_MATRIX_MODULES];
 };
 
-#endif /* LEDMATRIXDRIVER_H */
+#endif /* LED_MATRIX_DRIVER_H */

@@ -7,8 +7,6 @@
  */
 #include "LEDMatrixDriver.hpp"
 
-#include <string.h>
-
 /* MAX7219/MAX7221 commands, as defined in the datasheet */
 const static uint16_t ENABLE =		0x0C00;
 const static uint16_t TEST =	 	0x0F00;
@@ -32,11 +30,12 @@ static void reverse(uint8_t& b) {
 /***************************************************/
 /* Class		 								   */
 /***************************************************/
-LEDMatrixDriver::LEDMatrixDriver(uint8_t N, uint8_t flags, uint8_t* fb):
+LEDMatrixDriver::LEDMatrixDriver(uint8_t N, spi_transfer_t spi_transfer, uint8_t flags, uint8_t* fb):
 	N(N),
+	spi_transfer(spi_transfer),
 	flags(flags),
 	frameBuffer(fb),
-	selfAllocated(fb == nullptr),
+	selfAllocated(fb == nullptr)
 {
 	if (selfAllocated)
 		frameBuffer = new uint8_t[N*8];
@@ -44,9 +43,9 @@ LEDMatrixDriver::LEDMatrixDriver(uint8_t N, uint8_t flags, uint8_t* fb):
 	clear();	// initally clear the buffer as the memory will not be initialized on reset (old content will be in memory yet)
 	disable();
 	setIntensity(0);
-	_sendCommand(LEDMatrixDriver::TEST);			//no test
-	_sendCommand(LEDMatrixDriver::DECODE);			//no decode
-	_sendCommand(LEDMatrixDriver::SCAN_LIMIT | 7);	//all lines
+	_sendCommand(TEST);				// No test
+	_sendCommand(DECODE);			// No decode
+	_sendCommand(SCAN_LIMIT | 7);	// All lines
 }
 
 LEDMatrixDriver::~LEDMatrixDriver()
@@ -220,50 +219,42 @@ void LEDMatrixDriver::scroll(ScrollDirection direction, bool wrap)
 
 void LEDMatrixDriver::_sendCommand(uint16_t command)
 {
-	/* spi_transfer_callback */
+	for (uint8_t i = 0 ; i < MAX_LED_MATRIX_MODULES ; ++i)
+	{
+		this->cmd_buffer[i] = command; 
+	} 
 
-	// SPI.beginTransaction(spiSettings);
-	// digitalWrite(ssPin, 0);
-	// //send the same command to all segments
-	// for (uint8_t i = 0; i < N; ++i)
-	// {
-	// 	SPI.transfer16(command);
-	// }
-	// digitalWrite(ssPin, 1);
-	// SPI.endTransaction();
+	this->spi_transfer(this->cmd_buffer, MAX_LED_MATRIX_MODULES);
 }
 
 
 void LEDMatrixDriver::_displayRow(uint8_t row)
 {
-	//calculates row address based on flags
+	/* Calculates row address based on flags */
 	uint8_t address_row = flags & INVERT_Y ? 7 - row: row;
 
 	bool display_x_inverted = flags & INVERT_DISPLAY_X;
 	bool segment_x_inverted = flags & INVERT_SEGMENT_X;
 
-	//for x inverted display change iterating order
-	//inverting segments may still be needed!
-	int16_t from = display_x_inverted ? N-1 : 0;		//start from ...
-	int16_t to =   display_x_inverted ? -1  : N;		//where to stop
-	int16_t step = display_x_inverted ? -1  : 1;		//directon
+	/* For x inverted display change iterating order
+	   inverting segments may still be needed! */
+	int16_t from = display_x_inverted ? N-1 : 0; /* Start from ... */
+	int16_t to =   display_x_inverted ? -1  : N; /* Where to stop */
+	int16_t step = display_x_inverted ? -1  : 1; /* Directon */
 
-	/* SPI Transfer Callback */
+	uint8_t i = 0;
+	for (int16_t d = from; d != to; d += step)
+	{
+		uint8_t data = frameBuffer[d + row*N];
+		if (segment_x_inverted) {
+			reverse(data);
+		}
+		uint16_t cmd = ((address_row + 1) << 8) | data;
 
-	// SPI.beginTransaction(spiSettings);
-	// digitalWrite(ssPin, 0);
+		this->cmd_buffer[i++] = cmd;
+	}
 
-	// for (int16_t d = from; d != to; d += step)
-	// {
-	// 	uint8_t data = frameBuffer[d + row*N];
-	// 	if (segment_x_inverted)
-	// 		reverse(data);
-	// 	uint16_t cmd = ((address_row + 1) << 8) | data;
-	// 	SPI.transfer16(cmd);
-	// }
-
-	// digitalWrite(ssPin, 1);
-	// SPI.endTransaction();
+	this->spi_transfer(this->cmd_buffer, i);
 }
 
 uint8_t* LEDMatrixDriver::_getBufferPtr(int16_t x, int16_t y) const
