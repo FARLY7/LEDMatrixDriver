@@ -46,6 +46,7 @@ LEDMatrixDriver::LEDMatrixDriver(uint8_t N, spi_transfer_t spi_transfer, uint8_t
 	_sendCommand(TEST);				// No test
 	_sendCommand(DECODE);			// No decode
 	_sendCommand(SCAN_LIMIT | 7);	// All lines
+	display();
 }
 
 LEDMatrixDriver::~LEDMatrixDriver()
