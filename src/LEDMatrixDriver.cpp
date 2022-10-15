@@ -32,10 +32,10 @@ static void reverse(uint8_t& b) {
 /***************************************************/
 LEDMatrixDriver::LEDMatrixDriver(uint8_t N, spi_transfer_t spi_transfer, uint8_t flags, uint8_t* fb):
 	N(N),
-	spi_transfer(spi_transfer),
 	flags(flags),
 	frameBuffer(fb),
-	selfAllocated(fb == nullptr)
+	selfAllocated(fb == nullptr),
+	spi_transfer(spi_transfer)
 {
 	if (selfAllocated)
 		frameBuffer = new uint8_t[N*8];
@@ -229,6 +229,29 @@ void LEDMatrixDriver::_sendCommand(uint16_t command)
 }
 
 
+void transpose8(uint8_t A[8], int m, int n, 
+                uint8_t B[8]) {
+   unsigned x, y, t; 
+
+   // Load the array and pack it into x and y. 
+
+   x = (A[0]<<24)   | (A[m]<<16)   | (A[2*m]<<8) | A[3*m]; 
+   y = (A[4*m]<<24) | (A[5*m]<<16) | (A[6*m]<<8) | A[7*m]; 
+
+   t = (x ^ (x >> 7)) & 0x00AA00AA;  x = x ^ t ^ (t << 7); 
+   t = (y ^ (y >> 7)) & 0x00AA00AA;  y = y ^ t ^ (t << 7); 
+
+   t = (x ^ (x >>14)) & 0x0000CCCC;  x = x ^ t ^ (t <<14); 
+   t = (y ^ (y >>14)) & 0x0000CCCC;  y = y ^ t ^ (t <<14); 
+
+   t = (x & 0xF0F0F0F0) | ((y >> 4) & 0x0F0F0F0F); 
+   y = ((x << 4) & 0xF0F0F0F0) | (y & 0x0F0F0F0F); 
+   x = t; 
+
+   B[0]=x>>24;    B[n]=x>>16;    B[2*n]=x>>8;  B[3*n]=x; 
+   B[4*n]=y>>24;  B[5*n]=y>>16;  B[6*n]=y>>8;  B[7*n]=y; 
+}
+
 void LEDMatrixDriver::_displayRow(uint8_t row)
 {
 	/* Calculates row address based on flags */
@@ -243,10 +266,45 @@ void LEDMatrixDriver::_displayRow(uint8_t row)
 	int16_t to =   display_x_inverted ? -1  : N; /* Where to stop */
 	int16_t step = display_x_inverted ? -1  : 1; /* Directon */
 
+
+
+	uint8_t block[8];
+	uint8_t block_tran[8];
+	uint8_t bytes_out[8*4];
+	if(flags & ROTATE_SEGMENT)
+	{
+		memset(block, 0, sizeof(block));
+		memset(block_tran, 0, sizeof(block_tran));
+		memset(bytes_out, 0, sizeof(bytes_out));
+
+		for(int i = 0 ; i < 4; i++)
+		{
+			/* Copy into 8x8 block */
+			for(int j = 0 ; j < 32 ; j += 4)
+			{
+				block[j/4] = frameBuffer[j + i];
+			}
+
+			transpose8(block, 1, 1, block_tran);
+
+			/* Copy from transposed 8x8 block */
+			for(int j = 0 ; j < 32 ; j += 4)
+			{
+				bytes_out[j + i] = block_tran[j/4];
+			}
+		}
+	}
+
 	uint8_t i = 0;
+	uint8_t data;
 	for (int16_t d = from; d != to; d += step)
 	{
-		uint8_t data = frameBuffer[d + row*N];
+		if(flags & ROTATE_SEGMENT) {
+			data = bytes_out[d + row*N];
+		} else {
+			data = frameBuffer[d + row*N];
+		}
+
 		if (segment_x_inverted) {
 			reverse(data);
 		}

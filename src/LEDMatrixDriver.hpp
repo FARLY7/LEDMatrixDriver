@@ -52,6 +52,7 @@ public:
 	const static uint8_t INVERT_SEGMENT_X = 1 << 0;
 	const static uint8_t INVERT_DISPLAY_X = 1 << 1;
 	const static uint8_t INVERT_Y 		  = 1 << 2;
+	const static uint8_t ROTATE_SEGMENT   = 1 << 3;
 
 	/**
 	 * @brief Construct a new LEDMatrixDriver object
