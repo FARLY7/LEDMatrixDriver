@@ -31,7 +31,7 @@
 /**
  * @brief This interface function must be implemented by the user.
  */
-typedef std::function<void(uint16_t *data, size_t len)> spi_transfer_t;
+typedef std::function<void(uint8_t *data, size_t len)> spi_transfer_t;
 
 /**
  * @brief LED Matrix Driver module
@@ -142,7 +142,7 @@ public:
 
 private:
 	uint8_t* _getBufferPtr(int16_t x, int16_t y) const;
-	void _sendCommand(uint16_t command);
+	void _sendCommand(uint8_t reg, uint8_t data);
 	void _displayRow(uint8_t row);
 
 	const uint8_t N;
@@ -151,7 +151,7 @@ private:
 	bool selfAllocated;
 	spi_transfer_t spi_transfer;
 
-	uint16_t cmd_buffer[MAX_LED_MATRIX_MODULES];
+	uint8_t cmd_buffer[(MAX_LED_MATRIX_MODULES * 2) + 1];
 };
 
 #endif /* LED_MATRIX_DRIVER_H */

@@ -8,11 +8,11 @@
 #include "LEDMatrixDriver.hpp"
 
 /* MAX7219/MAX7221 commands, as defined in the datasheet */
-const static uint16_t ENABLE =		0x0C00;
-const static uint16_t TEST =	 	0x0F00;
-const static uint16_t INTENSITY =	0x0A00;
-const static uint16_t SCAN_LIMIT =	0x0B00;
-const static uint16_t DECODE =		0x0900;
+const static uint8_t ENABLE =		0x0C;
+const static uint8_t TEST =	 		0x0F;
+const static uint8_t INTENSITY =	0x0A;
+const static uint8_t SCAN_LIMIT =	0x0B;
+const static uint8_t DECODE =		0x09;
 
 /***************************************************/
 /* Static functions 							   */
@@ -43,9 +43,9 @@ LEDMatrixDriver::LEDMatrixDriver(uint8_t N, spi_transfer_t spi_transfer, uint8_t
 	clear();	// initally clear the buffer as the memory will not be initialized on reset (old content will be in memory yet)
 	disable();
 	setIntensity(0);
-	_sendCommand(TEST);				// No test
-	_sendCommand(DECODE);			// No decode
-	_sendCommand(SCAN_LIMIT | 7);	// All lines
+	_sendCommand(TEST, 0);		// No test
+	_sendCommand(DECODE, 0);	// No decode
+	_sendCommand(SCAN_LIMIT, 7);// All lines
 	display();
 }
 
@@ -60,7 +60,7 @@ LEDMatrixDriver::~LEDMatrixDriver()
  */
 void LEDMatrixDriver::enable()
 {
-	_sendCommand(ENABLE | 1);
+	_sendCommand(ENABLE, 1);
 }
 
 /**
@@ -68,7 +68,7 @@ void LEDMatrixDriver::enable()
  */
 void LEDMatrixDriver::disable()
 {
-	_sendCommand(ENABLE | 0);
+	_sendCommand(ENABLE, 0);
 }
 
 /**
@@ -92,7 +92,7 @@ void LEDMatrixDriver::setIntensity(uint8_t level)
 	if (level > 15) {
 		level = 15;
 	}	
-	_sendCommand(INTENSITY | level);
+	_sendCommand(INTENSITY, level);
 }
 
 /**
@@ -218,14 +218,15 @@ void LEDMatrixDriver::scroll(ScrollDirection direction, bool wrap)
 	}
 }
 
-void LEDMatrixDriver::_sendCommand(uint16_t command)
+void LEDMatrixDriver::_sendCommand(uint8_t reg, uint8_t data)
 {
 	for (uint8_t i = 0 ; i < MAX_LED_MATRIX_MODULES ; ++i)
 	{
-		this->cmd_buffer[i] = command; 
+		this->cmd_buffer[(i*2)] 	= reg; 
+		this->cmd_buffer[(i*2) + 1] = data; 
 	} 
 
-	this->spi_transfer(this->cmd_buffer, MAX_LED_MATRIX_MODULES);
+	this->spi_transfer(this->cmd_buffer, MAX_LED_MATRIX_MODULES * 2);
 }
 
 
@@ -308,12 +309,14 @@ void LEDMatrixDriver::_displayRow(uint8_t row)
 		if (segment_x_inverted) {
 			reverse(data);
 		}
-		uint16_t cmd = ((address_row + 1) << 8) | data;
 
-		this->cmd_buffer[i++] = cmd;
+		uint8_t reg = address_row + 1;		
+		this->cmd_buffer[(2*i)] 	= reg;
+		this->cmd_buffer[(2*i) + 1] = data;
+		i++;
 	}
 
-	this->spi_transfer(this->cmd_buffer, i);
+	this->spi_transfer(this->cmd_buffer, i*2);
 }
 
 uint8_t* LEDMatrixDriver::_getBufferPtr(int16_t x, int16_t y) const
